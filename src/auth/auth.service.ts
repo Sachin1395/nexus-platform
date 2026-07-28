@@ -6,6 +6,8 @@ import { ConflictException } from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from './jwt.strategy';
+
 
 @Injectable()
 export class AuthService {
@@ -73,6 +75,12 @@ export class AuthService {
   return {
     access_token: this.jwtService.sign(payload),
   };
+
+  
+}
+
+me(user: JwtPayload) {
+  return user;
 }
 }
 
