@@ -3,38 +3,86 @@ import {
   Controller,
   Get,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { JwtPayload } from './jwt.strategy';
 import { GetUser } from './decorators/get-user.decorator';
 
-interface AuthenticatedRequest extends Request {
-  user: JwtPayload;
-}
-
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @ApiOperation({
+    summary: 'Register a new user',
+    description: 'Creates a new user account.',
+  })
+  @ApiBody({
+    type: RegisterDto,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'User registered successfully.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Email already registered.',
+  })
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
+  @ApiOperation({
+    summary: 'Login user',
+    description: 'Authenticates the user and returns a JWT access token.',
+  })
+  @ApiBody({
+    type: LoginDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials.',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
-  @Get("me")
+  @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get current authenticated user',
+    description: 'Returns the currently authenticated user.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Authenticated user returned successfully.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized.',
+  })
   getMe(@GetUser() user) {
     return this.authService.me(user);
   }
