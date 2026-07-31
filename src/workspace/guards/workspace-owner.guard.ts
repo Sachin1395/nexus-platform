@@ -18,7 +18,8 @@ export class WorkspaceOwnerGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
 
     const user = request.user;
-    const workspaceId = request.params.id;
+    const workspaceId =
+  request.params.workspaceId ?? request.params.id;
 
     const workspace = await this.prisma.workspace.findUnique({
       where: {
