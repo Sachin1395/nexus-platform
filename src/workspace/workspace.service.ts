@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +10,7 @@ import { WorkspaceRole } from '../../generated/prisma/enums';
 
 @Injectable()
 export class WorkspaceService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateWorkspaceDto) {
     const slug = this.generateSlug(dto.name);
@@ -23,10 +22,12 @@ export class WorkspaceService {
     });
 
     if (existingWorkspace) {
-      throw new ConflictException('Workspace with this name already exists.');
+      throw new ConflictException(
+        'Workspace with this name already exists.',
+      );
     }
 
-    const workspace = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const createdWorkspace = await tx.workspace.create({
         data: {
           name: dto.name,
@@ -46,8 +47,6 @@ export class WorkspaceService {
 
       return createdWorkspace;
     });
-
-    return workspace;
   }
 
   async findAll(userId: string) {
@@ -61,36 +60,13 @@ export class WorkspaceService {
     });
   }
 
-  async findOne(id: string, userId: string) {
+  async update(
+    id: string,
+    dto: UpdateWorkspaceDto,
+  ) {
     const workspace = await this.prisma.workspace.findUnique({
       where: {
         id,
-      },
-    });
-
-    if (!workspace) {
-      throw new NotFoundException('Workspace not found');
-    }
-
-    if (workspace.ownerId !== userId) {
-      throw new ForbiddenException(
-        'You are not allowed to access this workspace',
-      );
-    }
-
-    return workspace;
-  }
-
-
-  async update(
-    id: string,
-    userId: string,
-    dto: UpdateWorkspaceDto,
-  ) {
-    const workspace = await this.prisma.workspace.findFirst({
-      where: {
-        id,
-        ownerId: userId,
       },
     });
 
@@ -127,18 +103,7 @@ export class WorkspaceService {
     });
   }
 
-  async remove(id: string, userId: string) {
-    const workspace = await this.prisma.workspace.findFirst({
-      where: {
-        id,
-        ownerId: userId,
-      },
-    });
-
-    if (!workspace) {
-      throw new NotFoundException('Workspace not found');
-    }
-
+  async remove(id: string) {
     await this.prisma.workspace.delete({
       where: {
         id,
@@ -157,6 +122,4 @@ export class WorkspaceService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
   }
-
-
 }
