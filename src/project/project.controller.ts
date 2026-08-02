@@ -14,12 +14,16 @@ import { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
+import { WorkspaceRole } from '@prisma/client';
+
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { WorkspaceOwnerGuard } from '../workspace/guards/workspace-owner.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 import { ProjectGuard } from './guards/project.guard';
 import { ProjectService } from './project.service';
@@ -33,10 +37,14 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 export class ProjectController {
   constructor(
     private readonly projectService: ProjectService,
-  ) {}
+  ) { }
 
   @Post()
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiOperation({
     summary: 'Create a new project',
   })
@@ -55,7 +63,13 @@ export class ProjectController {
   }
 
   @Get()
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.DEVELOPER,
+    WorkspaceRole.VIEWER,
+  )
   @ApiOperation({
     summary: 'Get all projects in a workspace',
   })
@@ -66,12 +80,23 @@ export class ProjectController {
   }
 
   @Get(':projectId')
-  @UseGuards(
-    WorkspaceOwnerGuard,
-    ProjectGuard,
+  @UseGuards(RolesGuard, ProjectGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.DEVELOPER,
+    WorkspaceRole.VIEWER,
   )
   @ApiOperation({
     summary: 'Get a project by ID',
+  })
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
   })
   findOne(
     @Req() req: Request & { project: any },
@@ -81,11 +106,36 @@ export class ProjectController {
 
   @Patch(':projectId')
   @UseGuards(
-    WorkspaceOwnerGuard,
+    RolesGuard,
     ProjectGuard,
+  )
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.DEVELOPER,
   )
   @ApiOperation({
     summary: 'Update a project',
+  })
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Project updated successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Project not found.',
   })
   update(
     @Req() req: Request & { project: any },
@@ -99,15 +149,34 @@ export class ProjectController {
 
   @Delete(':projectId')
   @UseGuards(
-    WorkspaceOwnerGuard,
+    RolesGuard,
     ProjectGuard,
+  )
+  @Roles(
+    WorkspaceRole.OWNER,
   )
   @ApiOperation({
     summary: 'Delete a project',
   })
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Project deleted successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Project not found.',
   })
   remove(
     @Req() req: Request & { project: any },

@@ -15,10 +15,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { WorkspaceRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+
 import { WorkspaceService } from './workspace.service';
-import { WorkspaceOwnerGuard } from './guards/workspace-owner.guard';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 
@@ -63,28 +66,40 @@ export class WorkspaceController {
   }
 
   @Get(':id')
-  @UseGuards(WorkspaceOwnerGuard)
-  @ApiOperation({
-    summary: 'Get workspace by ID',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Workspace found.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Workspace not found.',
-  })
-  async findOne(@Request() req) {
-    return req.workspace;
-  }
+@UseGuards(RolesGuard)
+@Roles(
+  WorkspaceRole.OWNER,
+  WorkspaceRole.ADMIN,
+  WorkspaceRole.DEVELOPER,
+  WorkspaceRole.VIEWER,
+)
+@ApiOperation({
+  summary: 'Get workspace by ID',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Workspace found.',
+})
+@ApiResponse({
+  status: 403,
+  description: 'Forbidden.',
+})
+@ApiResponse({
+  status: 404,
+  description: 'Workspace not found.',
+})
+async findOne(
+  @Param('id') id: string,
+) {
+  return this.workspaceService.findOne(id);
+}
 
   @Patch(':id')
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiOperation({
     summary: 'Update workspace',
   })
@@ -112,7 +127,8 @@ export class WorkspaceController {
   }
 
   @Delete(':id')
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(WorkspaceRole.OWNER)
   @ApiOperation({
     summary: 'Delete workspace',
   })

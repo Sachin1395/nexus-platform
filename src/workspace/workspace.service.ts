@@ -115,6 +115,22 @@ export class WorkspaceService {
     };
   }
 
+  async findOne(id: string) {
+  const workspace = await this.prisma.workspace.findUnique({
+    where: {
+      id,
+    },
+  });
+
+  if (!workspace) {
+    throw new NotFoundException(
+      'Workspace not found.',
+    );
+  }
+
+  return workspace;
+}
+
   private generateSlug(name: string): string {
     return name
       .trim()

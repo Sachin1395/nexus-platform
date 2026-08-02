@@ -14,13 +14,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { WorkspaceRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { WorkspaceOwnerGuard } from '../workspace/guards/workspace-owner.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 import { WorkspaceMembersService } from './workspace-members.service';
 import { AddMemberDto } from './dto/add-member.dto';
-import { WorkspaceMemberGuard } from 'src/workspace/guards/workspace-member.guard';
 
 @ApiTags('Workspace Members')
 @ApiBearerAuth()
@@ -32,7 +33,11 @@ export class WorkspaceMembersController {
   ) {}
 
   @Post()
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiOperation({
     summary: 'Invite a member to the workspace',
   })
@@ -63,7 +68,13 @@ export class WorkspaceMembersController {
   }
 
   @Get()
-  @UseGuards(WorkspaceMemberGuard)
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.DEVELOPER,
+    WorkspaceRole.VIEWER,
+  )
   @ApiOperation({
     summary: 'Get workspace members',
   })
@@ -84,7 +95,8 @@ export class WorkspaceMembersController {
   }
 
   @Delete(':memberId')
-  @UseGuards(WorkspaceOwnerGuard)
+  @UseGuards(RolesGuard)
+  @Roles(WorkspaceRole.OWNER)
   @ApiOperation({
     summary: 'Remove a workspace member',
   })
