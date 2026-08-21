@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -27,6 +28,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 import { ProjectGuard } from './guards/project.guard';
 import { ProjectService } from './project.service';
+import { ApiKeyService } from './api-key.service';
+
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
@@ -37,6 +40,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 export class ProjectController {
   constructor(
     private readonly projectService: ProjectService,
+    private readonly apiKeyService: ApiKeyService,
   ) { }
 
   @Post()
@@ -184,5 +188,73 @@ export class ProjectController {
     return this.projectService.remove(
       req.project.id,
     );
+  }
+
+
+  @Post(':projectId/api-keys')
+  @UseGuards(RolesGuard, ProjectGuard)
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+  })
+  @ApiOperation({ summary: 'Generate a new API key for a project' })
+  async createApiKey(
+    @Param('projectId') projectId: string,
+    @Body('name') name: string, // Expecting a name for the key in the body
+  ) {
+    return this.apiKeyService.createApiKey(projectId, name || 'Default Key');
+  }
+
+  // Add this inside ProjectController
+
+  @Get(':projectId/api-keys')
+  @UseGuards(RolesGuard, ProjectGuard)
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+  })
+ 
+  @ApiOperation({ summary: 'List all API keys for a project' })
+  async listApiKeys(@Param('projectId') projectId: string) {
+    return this.apiKeyService.listApiKeys(projectId);
+  }
+
+  @Delete(':projectId/api-keys/:apiKeyId')
+  @UseGuards(RolesGuard, ProjectGuard)
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @ApiParam({
+    name: 'workspaceId',
+    description: 'Workspace ID',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+  })
+  @ApiParam({
+    name: 'apiKeyId',
+    description: 'API Key ID',
+  })
+  @ApiOperation({ summary: 'Revoke an API key' })
+  async revokeApiKey(
+    @Param('projectId') projectId: string,
+    @Param('apiKeyId') apiKeyId: string,
+  ) {
+    const result = await this.apiKeyService.revokeApiKey(projectId, apiKeyId);
+    
+    if (result.count === 0) {
+      throw new NotFoundException('API Key not found for this project');
+    }
+    
+    return { message: 'API Key revoked successfully' };
   }
 }
