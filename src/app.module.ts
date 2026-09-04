@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { ProjectModule } from './project/project.module';
 import { WorkspaceMembersModule } from './workspace-members/workspace-members.module';
+import { CacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WorkspaceMembersModule } from './workspace-members/workspace-members.mo
     WorkspaceModule,
     ProjectModule,
     WorkspaceMembersModule,
+    CacheModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -46,6 +46,7 @@ model Workspace {
 
   members WorkspaceMember[]
   projects Project[]
+  auditLogs AuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,4 +97,23 @@ model ApiKey {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   expiresAt   DateTime? // Optional: Set an expiration date if you want
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+
+  workspaceId  String?
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId       String?
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json?
+
+  createdAt    DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([resourceType, resourceId])
 }

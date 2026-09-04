@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -15,6 +16,7 @@ export class ProjectService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async create(
@@ -46,6 +48,9 @@ export class ProjectService {
         },
       });
 
+    // New project means the cached list is stale — invalidate it
+    await this.cacheService.del(`projects_list:${workspaceId}`);
+
     this.logger.log(
       `Project ${project.id} created in workspace ${workspaceId}`,
     );
@@ -54,14 +59,19 @@ export class ProjectService {
   }
 
   async findAll(workspaceId: string) {
-    return this.prisma.project.findMany({
-      where: {
-        workspaceId,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    return this.cacheService.getOrSet(
+      `projects_list:${workspaceId}`,
+      30000, // 30s TTL
+      () =>
+        this.prisma.project.findMany({
+          where: {
+            workspaceId,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+    );
   }
 
   async update(
@@ -93,20 +103,28 @@ export class ProjectService {
       }
     }
 
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: {
         id: projectId,
       },
       data: dto,
     });
+
+    // Data changed — evict the stale cached list
+    await this.cacheService.del(`projects_list:${updated.workspaceId}`);
+
+    return updated;
   }
 
   async remove(projectId: string) {
-    await this.prisma.project.delete({
+    const deleted = await this.prisma.project.delete({
       where: {
         id: projectId,
       },
     });
+
+    // Prisma's delete() returns the deleted row, so we get workspaceId for free
+    await this.cacheService.del(`projects_list:${deleted.workspaceId}`);
 
     this.logger.log(
       `Project ${projectId} deleted.`,

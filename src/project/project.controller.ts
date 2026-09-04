@@ -9,6 +9,7 @@ import {
   Post,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -33,6 +34,9 @@ import { ApiKeyService } from './api-key.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
+import { AuditInterceptor } from '../audit-log/interceptors/audit.interceptor';
+import { Audit } from '../audit-log/decorators/audit.decorator';
+
 @ApiTags('Projects')
 @ApiBearerAuth()
 @Controller('workspaces/:workspaceId/projects')
@@ -56,6 +60,8 @@ export class ProjectController {
     status: 201,
     description: 'Project created successfully.',
   })
+  @UseInterceptors(AuditInterceptor)
+  @Audit('PROJECT_CREATED', 'PROJECT')
   create(
     @Param('workspaceId') workspaceId: string,
     @Body() dto: CreateProjectDto,
@@ -140,7 +146,8 @@ export class ProjectController {
   @ApiResponse({
     status: 404,
     description: 'Project not found.',
-  })
+  }) @UseInterceptors(AuditInterceptor)
+  @Audit('PROJECT_UPDATED', 'PROJECT')
   update(
     @Req() req: Request & { project: any },
     @Body() dto: UpdateProjectDto,
@@ -182,6 +189,8 @@ export class ProjectController {
     status: 404,
     description: 'Project not found.',
   })
+  @UseInterceptors(AuditInterceptor)
+  @Audit('PROJECT_DELETED', 'PROJECT')
   remove(
     @Req() req: Request & { project: any },
   ) {
@@ -203,6 +212,8 @@ export class ProjectController {
     description: 'Project ID',
   })
   @ApiOperation({ summary: 'Generate a new API key for a project' })
+  @UseInterceptors(AuditInterceptor)
+  @Audit('API_KEY_CREATED', 'API_KEY')
   async createApiKey(
     @Param('projectId') projectId: string,
     @Body('name') name: string, // Expecting a name for the key in the body
@@ -223,7 +234,7 @@ export class ProjectController {
     name: 'projectId',
     description: 'Project ID',
   })
- 
+
   @ApiOperation({ summary: 'List all API keys for a project' })
   async listApiKeys(@Param('projectId') projectId: string) {
     return this.apiKeyService.listApiKeys(projectId);
@@ -245,16 +256,18 @@ export class ProjectController {
     description: 'API Key ID',
   })
   @ApiOperation({ summary: 'Revoke an API key' })
+  @UseInterceptors(AuditInterceptor)
+  @Audit('API_KEY_REVOKED', 'API_KEY')
   async revokeApiKey(
     @Param('projectId') projectId: string,
     @Param('apiKeyId') apiKeyId: string,
   ) {
     const result = await this.apiKeyService.revokeApiKey(projectId, apiKeyId);
-    
+
     if (result.count === 0) {
       throw new NotFoundException('API Key not found for this project');
     }
-    
+
     return { message: 'API Key revoked successfully' };
   }
 }

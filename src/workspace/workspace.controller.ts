@@ -8,6 +8,7 @@ import {
   Post,
   Request,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -20,6 +21,9 @@ import { WorkspaceRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+
+import { AuditInterceptor } from '../audit-log/interceptors/audit.interceptor';
+import { Audit } from '../audit-log/decorators/audit.decorator';
 
 import { WorkspaceService } from './workspace.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -35,6 +39,8 @@ export class WorkspaceController {
   ) {}
 
   @Post()
+  @UseInterceptors(AuditInterceptor)
+  @Audit('WORKSPACE_CREATED', 'WORKSPACE')
   @ApiOperation({
     summary: 'Create a new workspace',
   })
@@ -66,36 +72,38 @@ export class WorkspaceController {
   }
 
   @Get(':id')
-@UseGuards(RolesGuard)
-@Roles(
-  WorkspaceRole.OWNER,
-  WorkspaceRole.ADMIN,
-  WorkspaceRole.DEVELOPER,
-  WorkspaceRole.VIEWER,
-)
-@ApiOperation({
-  summary: 'Get workspace by ID',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Workspace found.',
-})
-@ApiResponse({
-  status: 403,
-  description: 'Forbidden.',
-})
-@ApiResponse({
-  status: 404,
-  description: 'Workspace not found.',
-})
-async findOne(
-  @Param('id') id: string,
-) {
-  return this.workspaceService.findOne(id);
-}
+  @UseGuards(RolesGuard)
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.DEVELOPER,
+    WorkspaceRole.VIEWER,
+  )
+  @ApiOperation({
+    summary: 'Get workspace by ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workspace found.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workspace not found.',
+  })
+  async findOne(
+    @Param('id') id: string,
+  ) {
+    return this.workspaceService.findOne(id);
+  }
 
   @Patch(':id')
   @UseGuards(RolesGuard)
+  @UseInterceptors(AuditInterceptor)
+  @Audit('WORKSPACE_UPDATED', 'WORKSPACE')
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -128,6 +136,8 @@ async findOne(
 
   @Delete(':id')
   @UseGuards(RolesGuard)
+  @UseInterceptors(AuditInterceptor)
+  @Audit('WORKSPACE_DELETED', 'WORKSPACE')
   @Roles(WorkspaceRole.OWNER)
   @ApiOperation({
     summary: 'Delete workspace',
