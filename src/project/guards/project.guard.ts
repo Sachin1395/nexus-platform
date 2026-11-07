@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class ProjectGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async canActivate(
     context: ExecutionContext,
@@ -21,16 +22,21 @@ export class ProjectGuard implements CanActivate {
     const workspaceId = request.params.workspaceId;
     const projectId = request.params.projectId;
 
-    const project = await this.prisma.project.findFirst({
+    const project = await this.prisma.project.findUnique({
       where: {
         id: projectId,
-        workspaceId,
       },
     });
 
     if (!project) {
       throw new NotFoundException(
         'Project not found.',
+      );
+    }
+
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'You do not have access to this project.',
       );
     }
 

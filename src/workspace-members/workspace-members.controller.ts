@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -14,11 +15,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { Throttle } from '@nestjs/throttler';
+
 import { WorkspaceRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ThrottlerBehindApiKeyGuard } from '../auth/guards/throttler-behind-api-key.guard';
 
 import { WorkspaceMembersService } from './workspace-members.service';
 import { AddMemberDto } from './dto/add-member.dto';
@@ -26,14 +31,27 @@ import { AddMemberDto } from './dto/add-member.dto';
 @ApiTags('Workspace Members')
 @ApiBearerAuth()
 @Controller('workspaces/:id/members')
-@UseGuards(JwtAuthGuard)
+@UseGuards(
+  JwtAuthGuard,
+  ThrottlerBehindApiKeyGuard,
+)
 export class WorkspaceMembersController {
   constructor(
     private readonly workspaceMembersService: WorkspaceMembersService,
   ) {}
 
+  // ============================================================
+  // INVITE MEMBER
+  // ============================================================
+
   @Post()
   @UseGuards(RolesGuard)
+  @Throttle({
+    strict: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -50,12 +68,20 @@ export class WorkspaceMembersController {
     description: 'Member added successfully.',
   })
   @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
     status: 404,
     description: 'User not found.',
   })
   @ApiResponse({
     status: 409,
     description: 'User is already a member.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
   })
   async invite(
     @Param('id') workspaceId: string,
@@ -67,8 +93,18 @@ export class WorkspaceMembersController {
     );
   }
 
+  // ============================================================
+  // GET ALL MEMBERS
+  // ============================================================
+
   @Get()
   @UseGuards(RolesGuard)
+  @Throttle({
+    default: {
+      limit: 60,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -86,6 +122,14 @@ export class WorkspaceMembersController {
     status: 200,
     description: 'Workspace members fetched successfully.',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   async findAll(
     @Param('id') workspaceId: string,
   ) {
@@ -94,9 +138,21 @@ export class WorkspaceMembersController {
     );
   }
 
+  // ============================================================
+  // REMOVE MEMBER
+  // ============================================================
+
   @Delete(':memberId')
   @UseGuards(RolesGuard)
-  @Roles(WorkspaceRole.OWNER)
+  @Throttle({
+    strict: {
+      limit: 5,
+      ttl: 60000,
+    },
+  })
+  @Roles(
+    WorkspaceRole.OWNER,
+  )
   @ApiOperation({
     summary: 'Remove a workspace member',
   })
@@ -113,8 +169,16 @@ export class WorkspaceMembersController {
     description: 'Member removed successfully.',
   })
   @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
     status: 404,
     description: 'Member not found.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
   })
   async remove(
     @Param('id') workspaceId: string,

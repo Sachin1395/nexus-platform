@@ -12,11 +12,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ThrottlerBehindApiKeyGuard } from './guards/throttler-behind-api-key.guard';
 import { GetUser } from './decorators/get-user.decorator';
 
 @ApiTags('Authentication')
@@ -25,6 +27,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(ThrottlerBehindApiKeyGuard)
+  @Throttle({
+    strict: {
+      limit: 5,
+      ttl: 60000,
+    },
+  })
   @ApiOperation({
     summary: 'Register a new user',
     description: 'Creates a new user account.',
@@ -49,6 +58,13 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(ThrottlerBehindApiKeyGuard)
+  @Throttle({
+    strict: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
   @ApiOperation({
     summary: 'Login user',
     description: 'Authenticates the user and returns a JWT access token.',

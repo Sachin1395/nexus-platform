@@ -23,6 +23,7 @@ export class ApiKeyGuard implements CanActivate {
 
     // Attach the project to the request object so you can use it in your controller
     request.project = keyRecord.project;
+    request.apiKey = { id: keyRecord.id };
     return true;
   }
 }

@@ -7,7 +7,11 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtStrategy } from './jwt.strategy';
+
 import { RolesGuard } from './guards/roles.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ApiKeyGuard } from './guards/api-key.guard';
+import { JwtOrApiKeyGuard } from './guards/jwt-or-api-key.guard';
 
 @Module({
   imports: [
@@ -26,15 +30,25 @@ import { RolesGuard } from './guards/roles.guard';
       }),
     }),
   ],
+
   controllers: [AuthController],
+
   providers: [
     AuthService,
     JwtStrategy,
+
     RolesGuard,
+    JwtAuthGuard,
+    ApiKeyGuard,
+    JwtOrApiKeyGuard, // ← add
   ],
+
   exports: [
     JwtStrategy,
-    RolesGuard,   // <-- Export this
+    RolesGuard,
+    JwtAuthGuard,
+    ApiKeyGuard,
+    JwtOrApiKeyGuard, // ← add
   ],
 })
 export class AuthModule {}

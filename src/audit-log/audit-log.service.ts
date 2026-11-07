@@ -44,11 +44,33 @@ export class AuditLogService {
 }
 
   async findAllForWorkspace(workspaceId: string, take = 50, skip = 0) {
-    return this.prisma.auditLog.findMany({
+    const logs = await this.prisma.auditLog.findMany({
       where: { workspaceId },
       orderBy: { createdAt: 'desc' },
       take,
       skip,
     });
+
+    const userIds = [
+      ...new Set(
+        logs.flatMap((log) => (log.userId ? [log.userId] : [])),
+      ),
+    ];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true },
+    });
+
+    const emailsById = new Map(
+      users.map((user) => [user.id, user.email]),
+    );
+
+    return logs.map((log) => ({
+      ...log,
+      actorEmail: log.userId
+        ? (emailsById.get(log.userId) ?? null)
+        : null,
+    }));
   }
 }

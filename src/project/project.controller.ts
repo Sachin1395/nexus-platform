@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+
 import { Request } from 'express';
 
 import {
@@ -26,6 +27,7 @@ import { WorkspaceRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ThrottlerBehindApiKeyGuard } from '../auth/guards/throttler-behind-api-key.guard';
 
 import { ProjectGuard } from './guards/project.guard';
 import { ProjectService } from './project.service';
@@ -37,18 +39,35 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { AuditInterceptor } from '../audit-log/interceptors/audit.interceptor';
 import { Audit } from '../audit-log/decorators/audit.decorator';
 
+import { Throttle } from '@nestjs/throttler';
+import { JwtOrApiKeyGuard } from 'src/auth/guards/jwt-or-api-key.guard';
+import { ApiKeyAccessGuard } from './guards/api-key-access.guard';
+
 @ApiTags('Projects')
 @ApiBearerAuth()
 @Controller('workspaces/:workspaceId/projects')
-@UseGuards(JwtAuthGuard)
+@UseGuards(
+  
+  ThrottlerBehindApiKeyGuard,
+)
 export class ProjectController {
   constructor(
     private readonly projectService: ProjectService,
     private readonly apiKeyService: ApiKeyService,
-  ) { }
+  ) {}
+
+  // ============================================================
+  // CREATE PROJECT
+  // ============================================================
 
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard,ApiKeyAccessGuard,RolesGuard)
+  @Throttle({
+    strict: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -59,6 +78,14 @@ export class ProjectController {
   @ApiResponse({
     status: 201,
     description: 'Project created successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
   })
   @UseInterceptors(AuditInterceptor)
   @Audit('PROJECT_CREATED', 'PROJECT')
@@ -72,8 +99,18 @@ export class ProjectController {
     );
   }
 
+  // ============================================================
+  // GET ALL PROJECTS
+  // ============================================================
+
   @Get()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtOrApiKeyGuard,ApiKeyAccessGuard,RolesGuard)
+  @Throttle({
+    default: {
+      limit: 60,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -83,14 +120,35 @@ export class ProjectController {
   @ApiOperation({
     summary: 'Get all projects in a workspace',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Projects retrieved successfully.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   findAll(
     @Param('workspaceId') workspaceId: string,
   ) {
     return this.projectService.findAll(workspaceId);
   }
 
+  // ============================================================
+  // GET ONE PROJECT
+  // ============================================================
+
   @Get(':projectId')
-  @UseGuards(RolesGuard, ProjectGuard)
+  @UseGuards(JwtAuthGuard,
+    RolesGuard,
+    ProjectGuard,
+  )
+  @Throttle({
+    default: {
+      limit: 60,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -108,17 +166,43 @@ export class ProjectController {
     name: 'projectId',
     description: 'Project ID',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Project retrieved successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Project not found.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   findOne(
     @Req() req: Request & { project: any },
   ) {
     return req.project;
   }
 
+  // ============================================================
+  // UPDATE PROJECT
+  // ============================================================
+
   @Patch(':projectId')
-  @UseGuards(
+  @UseGuards(JwtAuthGuard,
     RolesGuard,
     ProjectGuard,
   )
+  @Throttle({
+    strict: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
     WorkspaceRole.ADMIN,
@@ -146,7 +230,12 @@ export class ProjectController {
   @ApiResponse({
     status: 404,
     description: 'Project not found.',
-  }) @UseInterceptors(AuditInterceptor)
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
+  @UseInterceptors(AuditInterceptor)
   @Audit('PROJECT_UPDATED', 'PROJECT')
   update(
     @Req() req: Request & { project: any },
@@ -158,11 +247,21 @@ export class ProjectController {
     );
   }
 
+  // ============================================================
+  // DELETE PROJECT
+  // ============================================================
+
   @Delete(':projectId')
-  @UseGuards(
+  @UseGuards(JwtAuthGuard,
     RolesGuard,
     ProjectGuard,
   )
+  @Throttle({
+    strict: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
   @Roles(
     WorkspaceRole.OWNER,
   )
@@ -189,6 +288,10 @@ export class ProjectController {
     status: 404,
     description: 'Project not found.',
   })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   @UseInterceptors(AuditInterceptor)
   @Audit('PROJECT_DELETED', 'PROJECT')
   remove(
@@ -199,10 +302,25 @@ export class ProjectController {
     );
   }
 
+  // ============================================================
+  // CREATE API KEY
+  // ============================================================
 
   @Post(':projectId/api-keys')
-  @UseGuards(RolesGuard, ProjectGuard)
-  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @UseGuards(JwtAuthGuard,
+    RolesGuard,
+    ProjectGuard,
+  )
+  @Throttle({
+    strict: {
+      limit: 5,
+      ttl: 60000,
+    },
+  })
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiParam({
     name: 'workspaceId',
     description: 'Workspace ID',
@@ -211,21 +329,53 @@ export class ProjectController {
     name: 'projectId',
     description: 'Project ID',
   })
-  @ApiOperation({ summary: 'Generate a new API key for a project' })
+  @ApiOperation({
+    summary: 'Generate a new API key for a project',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'API key created successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   @UseInterceptors(AuditInterceptor)
   @Audit('API_KEY_CREATED', 'API_KEY')
   async createApiKey(
     @Param('projectId') projectId: string,
-    @Body('name') name: string, // Expecting a name for the key in the body
+    @Body('name') name: string,
   ) {
-    return this.apiKeyService.createApiKey(projectId, name || 'Default Key');
+    return this.apiKeyService.createApiKey(
+      projectId,
+      name || 'Default Key',
+    );
   }
 
-  // Add this inside ProjectController
+  // ============================================================
+  // LIST API KEYS
+  // ============================================================
 
   @Get(':projectId/api-keys')
-  @UseGuards(RolesGuard, ProjectGuard)
-  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @UseGuards(JwtOrApiKeyGuard,
+    ApiKeyAccessGuard,
+    RolesGuard,
+    ProjectGuard,
+  )
+  @Throttle({
+    default: {
+      limit: 30,
+      ttl: 60000,
+    },
+  })
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiParam({
     name: 'workspaceId',
     description: 'Workspace ID',
@@ -234,15 +384,48 @@ export class ProjectController {
     name: 'projectId',
     description: 'Project ID',
   })
-
-  @ApiOperation({ summary: 'List all API keys for a project' })
-  async listApiKeys(@Param('projectId') projectId: string) {
-    return this.apiKeyService.listApiKeys(projectId);
+  @ApiOperation({
+    summary: 'List all API keys for a project',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'API keys retrieved successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
+  async listApiKeys(
+    @Param('projectId') projectId: string,
+  ) {
+    return this.apiKeyService.listApiKeys(
+      projectId,
+    );
   }
 
+  // ============================================================
+  // REVOKE API KEY
+  // ============================================================
+
   @Delete(':projectId/api-keys/:apiKeyId')
-  @UseGuards(RolesGuard, ProjectGuard)
-  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @UseGuards(JwtAuthGuard,
+    RolesGuard,
+    ProjectGuard,
+  )
+  @Throttle({
+    strict: {
+      limit: 5,
+      ttl: 60000,
+    },
+  })
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+  )
   @ApiParam({
     name: 'workspaceId',
     description: 'Workspace ID',
@@ -255,19 +438,45 @@ export class ProjectController {
     name: 'apiKeyId',
     description: 'API Key ID',
   })
-  @ApiOperation({ summary: 'Revoke an API key' })
+  @ApiOperation({
+    summary: 'Revoke an API key',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'API key revoked successfully.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'API key not found for this project.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+  })
   @UseInterceptors(AuditInterceptor)
   @Audit('API_KEY_REVOKED', 'API_KEY')
   async revokeApiKey(
     @Param('projectId') projectId: string,
     @Param('apiKeyId') apiKeyId: string,
   ) {
-    const result = await this.apiKeyService.revokeApiKey(projectId, apiKeyId);
+    const result =
+      await this.apiKeyService.revokeApiKey(
+        projectId,
+        apiKeyId,
+      );
 
     if (result.count === 0) {
-      throw new NotFoundException('API Key not found for this project');
+      throw new NotFoundException(
+        'API Key not found for this project',
+      );
     }
 
-    return { message: 'API Key revoked successfully' };
+    return {
+      message: 'API Key revoked successfully',
+    };
   }
 }

@@ -11,6 +11,7 @@ import { WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -38,6 +39,11 @@ export class RolesGuard implements CanActivate {
     const request =
       context.switchToHttp().getRequest();
 
+    // API keys have no role. ApiKeyAccessGuard scopes them to their project.
+    if (!request.user && request.apiKey) {
+      return true;
+    }
+
     const workspaceId =
       request.params.workspaceId ??
       request.params.id;
@@ -49,6 +55,16 @@ export class RolesGuard implements CanActivate {
     }
 
     const userId = request.user.id;
+
+    const workspace = await this.prisma.workspace.findUnique({
+      where: {
+        id: workspaceId,
+      },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found.');
+    }
 
     const membership =
       await this.prisma.workspaceMember.findUnique({

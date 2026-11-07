@@ -52,7 +52,10 @@ export class WorkspaceService {
   async findAll(userId: string) {
     return this.prisma.workspace.findMany({
       where: {
-        ownerId: userId,
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId } } },
+        ],
       },
       orderBy: {
         createdAt: 'desc',
